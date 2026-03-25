@@ -1,153 +1,156 @@
 /*
- * Fixed UWC Authentication Protocol - Scyther Formal Verification
+ * UWC Authentication Protocol - Scyther Formal Verification
  *
- * WHY THE ORIGINAL FAILED (3 root causes):
+ * 4-hop chain:  UWS <-> SUB <-> BUOY <-> SAT <-> BS
+ * Each hop = independent Needham-Schroeder-Lowe (NSL) 3-message exchange.
  *
- *  1. Symmetric keys k(A,B): When the intruder plays a peer role (e.g. acts as SUB),
- *     k(UWS,SUB) is known to the intruder. This means Secret,Nu in UWS fails because
- *     the intruder can decrypt message 1 and extract Nu. Same for every hop.
- *     FIX: Use asymmetric pk(A) encryption. Only the holder of sk(A) can decrypt
- *     {msg}pk(A). Even if UWS is compromised, messages to SUB remain confidential.
+ * Key design choices:
+ *   - Asymmetric pk() encryption (matches paper's ECC/ECDH)
+ *   - Hop-isolated nonces (no cross-hop leakage)
+ *   - Message tags (h1a/h1b/h1c etc) prevent cross-protocol confusion
+ *   - Responder identity inside msg 2 (the Lowe fix for Needham-Schroeder)
  *
- *  2. Accumulated nonces: Original message 5 was {BUOY,SUB,UWS,Nu,Ns,Nb}k(BUOY,SAT).
- *     This leaks Nu (UWS nonce) and Ns (SUB nonce) to SAT, violating hop isolation.
- *     If SAT is the intruder, it learns nonces from other hops, breaking Secret claims.
- *     FIX: Hop-isolated nonces - each hop only carries its own fresh nonce pair.
- *
- *  3. Missing 3rd message (2-way handshake): Without a final confirmation from the
- *     initiator, Niagree fails. Scyther finds an attack where the responder (SUB)
- *     completes thinking UWS agrees, but UWS could be at a different state.
- *     FIX: Add send_3(UWS,SUB,{Ns}pk(SUB)) - UWS echoes Ns back to confirm receipt.
- *     This creates a proper 3-way handshake and ties both sides to the same nonce pair.
- *
- * RESULT: All 20 claims pass - Alive, Weakagree, Niagree, Secret for all 5 roles.
- *
- * Protocol flow (each hop = independent 3-way ECC-authenticated exchange):
- *   UWS <--3way--> SUB <--3way--> BUOY <--3way--> SAT <--3way--> BS
+ * Expected:  32/32 claims pass  |  Execution time: < 1 second at max-runs=5
  */
 
-protocol UWCFixed(UWS, SUB, BUOY, SAT, BS)
+usertype Tag;
+const h1a, h1b, h1c: Tag;
+const h2a, h2b, h2c: Tag;
+const h3a, h3b, h3c: Tag;
+const h4a, h4b, h4c: Tag;
+
+/* ===  HOP 1: UWS <-> SUB  === */
+protocol uwchop1(UWS, SUB)
 {
+    role UWS
+    {
+        fresh Nu: Nonce;
+        var   Ns: Nonce;
 
-/* -----------------------------------------------------------------------
-   HOP 1: UWS <-> SUB
-   UWS sends Nu encrypted with SUB's public key.
-   SUB responds with Nu+Ns (proves it decrypted the challenge).
-   UWS confirms Ns (3rd message closes the handshake).
-   ----------------------------------------------------------------------- */
+        send_1(UWS, SUB, {h1a, UWS, Nu}pk(SUB));
+        recv_2(SUB, UWS, {h1b, Nu, Ns, SUB}pk(UWS));
+        send_3(UWS, SUB, {h1c, Ns}pk(SUB));
 
-role UWS
-{
-    fresh Nu: Nonce;
-    var Ns: Nonce;
+        claim(UWS, Alive);
+        claim(UWS, Weakagree);
+        claim(UWS, Niagree);
+        claim(UWS, Secret, Nu);
+    }
 
-    send_1(UWS, SUB, {UWS, Nu}pk(SUB));
-    recv_2(SUB, UWS, {SUB, Nu, Ns}pk(UWS));
-    send_3(UWS, SUB, {Ns}pk(SUB));
+    role SUB
+    {
+        var   Nu: Nonce;
+        fresh Ns: Nonce;
 
-    claim(UWS, Alive);
-    claim(UWS, Weakagree);
-    claim(UWS, Niagree);
-    claim(UWS, Secret, Nu);
+        recv_1(UWS, SUB, {h1a, UWS, Nu}pk(SUB));
+        send_2(SUB, UWS, {h1b, Nu, Ns, SUB}pk(UWS));
+        recv_3(UWS, SUB, {h1c, Ns}pk(SUB));
+
+        claim(SUB, Alive);
+        claim(SUB, Weakagree);
+        claim(SUB, Niagree);
+        claim(SUB, Secret, Ns);
+    }
 }
 
-role SUB
+/* ===  HOP 2: SUB <-> BUOY  === */
+protocol uwchop2(SUB, BUOY)
 {
-    var Nu: Nonce;
-    fresh Ns: Nonce;
-    var Nb: Nonce;
+    role SUB
+    {
+        fresh Ns: Nonce;
+        var   Nb: Nonce;
 
-    /* Hop 1 - responder side */
-    recv_1(UWS, SUB, {UWS, Nu}pk(SUB));
-    send_2(SUB, UWS, {SUB, Nu, Ns}pk(UWS));
-    recv_3(UWS, SUB, {Ns}pk(SUB));
+        send_1(SUB, BUOY, {h2a, SUB, Ns}pk(BUOY));
+        recv_2(BUOY, SUB, {h2b, Ns, Nb, BUOY}pk(SUB));
+        send_3(SUB, BUOY, {h2c, Nb}pk(BUOY));
 
-    /* Hop 2 - initiator side (SUB->BUOY)
-       Only Ns is passed forward. Nu stays at Hop 1 only. */
-    send_4(SUB, BUOY, {SUB, Ns}pk(BUOY));
-    recv_5(BUOY, SUB, {BUOY, Ns, Nb}pk(SUB));
-    send_6(SUB, BUOY, {Nb}pk(BUOY));
+        claim(SUB, Alive);
+        claim(SUB, Weakagree);
+        claim(SUB, Niagree);
+        claim(SUB, Secret, Ns);
+    }
 
-    claim(SUB, Alive);
-    claim(SUB, Weakagree);
-    claim(SUB, Niagree);
-    claim(SUB, Secret, Ns);
+    role BUOY
+    {
+        var   Ns: Nonce;
+        fresh Nb: Nonce;
+
+        recv_1(SUB, BUOY, {h2a, SUB, Ns}pk(BUOY));
+        send_2(BUOY, SUB, {h2b, Ns, Nb, BUOY}pk(SUB));
+        recv_3(SUB, BUOY, {h2c, Nb}pk(BUOY));
+
+        claim(BUOY, Alive);
+        claim(BUOY, Weakagree);
+        claim(BUOY, Niagree);
+        claim(BUOY, Secret, Nb);
+    }
 }
 
-/* -----------------------------------------------------------------------
-   HOP 2: SUB <-> BUOY
-   Hop-isolated: only Ns and Nb are exchanged here.
-   BUOY has no knowledge of Nu (UWS's nonce). Forward secrecy per hop.
-   ----------------------------------------------------------------------- */
-
-role BUOY
+/* ===  HOP 3: BUOY <-> SAT  === */
+protocol uwchop3(BUOY, SAT)
 {
-    var Ns: Nonce;
-    fresh Nb: Nonce;
-    var Nsat: Nonce;
+    role BUOY
+    {
+        fresh Nb: Nonce;
+        var   Nsat: Nonce;
 
-    /* Hop 2 - responder side */
-    recv_4(SUB, BUOY, {SUB, Ns}pk(BUOY));
-    send_5(BUOY, SUB, {BUOY, Ns, Nb}pk(SUB));
-    recv_6(SUB, BUOY, {Nb}pk(BUOY));
+        send_1(BUOY, SAT, {h3a, BUOY, Nb}pk(SAT));
+        recv_2(SAT, BUOY, {h3b, Nb, Nsat, SAT}pk(BUOY));
+        send_3(BUOY, SAT, {h3c, Nsat}pk(SAT));
 
-    /* Hop 3 - initiator side (BUOY->SAT)
-       Only Nb is passed forward. Ns stays at Hop 2 only. */
-    send_7(BUOY, SAT, {BUOY, Nb}pk(SAT));
-    recv_8(SAT, BUOY, {SAT, Nb, Nsat}pk(BUOY));
-    send_9(BUOY, SAT, {Nsat}pk(SAT));
+        claim(BUOY, Alive);
+        claim(BUOY, Weakagree);
+        claim(BUOY, Niagree);
+        claim(BUOY, Secret, Nb);
+    }
 
-    claim(BUOY, Alive);
-    claim(BUOY, Weakagree);
-    claim(BUOY, Niagree);
-    claim(BUOY, Secret, Nb);
+    role SAT
+    {
+        var   Nb: Nonce;
+        fresh Nsat: Nonce;
+
+        recv_1(BUOY, SAT, {h3a, BUOY, Nb}pk(SAT));
+        send_2(SAT, BUOY, {h3b, Nb, Nsat, SAT}pk(BUOY));
+        recv_3(BUOY, SAT, {h3c, Nsat}pk(SAT));
+
+        claim(SAT, Alive);
+        claim(SAT, Weakagree);
+        claim(SAT, Niagree);
+        claim(SAT, Secret, Nsat);
+    }
 }
 
-/* -----------------------------------------------------------------------
-   HOP 3: BUOY <-> SAT
-   ----------------------------------------------------------------------- */
-
-role SAT
+/* ===  HOP 4: SAT <-> BS  === */
+protocol uwchop4(SAT, BS)
 {
-    var Nb: Nonce;
-    fresh Nsat: Nonce;
-    var Nbs: Nonce;
+    role SAT
+    {
+        fresh Nsat: Nonce;
+        var   Nbs: Nonce;
 
-    /* Hop 3 - responder side */
-    recv_7(BUOY, SAT, {BUOY, Nb}pk(SAT));
-    send_8(SAT, BUOY, {SAT, Nb, Nsat}pk(BUOY));
-    recv_9(BUOY, SAT, {Nsat}pk(SAT));
+        send_1(SAT, BS, {h4a, SAT, Nsat}pk(BS));
+        recv_2(BS, SAT, {h4b, Nsat, Nbs, BS}pk(SAT));
+        send_3(SAT, BS, {h4c, Nbs}pk(BS));
 
-    /* Hop 4 - initiator side (SAT->BS)
-       Only Nsat is passed forward. Nb stays at Hop 3 only. */
-    send_10(SAT, BS, {SAT, Nsat}pk(BS));
-    recv_11(BS, SAT, {BS, Nsat, Nbs}pk(SAT));
-    send_12(SAT, BS, {Nbs}pk(BS));
+        claim(SAT, Alive);
+        claim(SAT, Weakagree);
+        claim(SAT, Niagree);
+        claim(SAT, Secret, Nsat);
+    }
 
-    claim(SAT, Alive);
-    claim(SAT, Weakagree);
-    claim(SAT, Niagree);
-    claim(SAT, Secret, Nsat);
-}
+    role BS
+    {
+        var   Nsat: Nonce;
+        fresh Nbs: Nonce;
 
-/* -----------------------------------------------------------------------
-   HOP 4: SAT <-> BS (final hop to base station)
-   ----------------------------------------------------------------------- */
+        recv_1(SAT, BS, {h4a, SAT, Nsat}pk(BS));
+        send_2(BS, SAT, {h4b, Nsat, Nbs, BS}pk(SAT));
+        recv_3(SAT, BS, {h4c, Nbs}pk(BS));
 
-role BS
-{
-    var Nsat: Nonce;
-    fresh Nbs: Nonce;
-
-    /* Hop 4 - responder side */
-    recv_10(SAT, BS, {SAT, Nsat}pk(BS));
-    send_11(BS, SAT, {BS, Nsat, Nbs}pk(SAT));
-    recv_12(SAT, BS, {Nbs}pk(BS));
-
-    claim(BS, Alive);
-    claim(BS, Weakagree);
-    claim(BS, Niagree);
-    claim(BS, Secret, Nbs);
-}
-
+        claim(BS, Alive);
+        claim(BS, Weakagree);
+        claim(BS, Niagree);
+        claim(BS, Secret, Nbs);
+    }
 }
