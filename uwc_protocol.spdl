@@ -1,85 +1,156 @@
-protocol UWCFull(UWS, SUB, BUOY, SAT, BS)
-{
-role UWS
-{
-    fresh Nu: Nonce;
-    var Ns: Nonce;
+/*
+ * UWC Authentication Protocol - Scyther Formal Verification
+ *
+ * 4-hop chain:  UWS <-> SUB <-> BUOY <-> SAT <-> BS
+ * Each hop = independent Needham-Schroeder-Lowe (NSL) 3-message exchange.
+ *
+ * Key design choices:
+ *   - Asymmetric pk() encryption (matches paper's ECC/ECDH)
+ *   - Hop-isolated nonces (no cross-hop leakage)
+ *   - Message tags (h1a/h1b/h1c etc) prevent cross-protocol confusion
+ *   - Responder identity inside msg 2 (the Lowe fix for Needham-Schroeder)
+ *
+ * Expected:  32/32 claims pass  |  Execution time: < 1 second at max-runs=5
+ */
 
-    send_1(UWS, SUB, {UWS, Nu}k(UWS,SUB));
-    recv_2(SUB, UWS, {SUB, UWS, Nu, Ns}k(UWS,SUB));
+usertype Tag;
+const h1a, h1b, h1c: Tag;
+const h2a, h2b, h2c: Tag;
+const h3a, h3b, h3c: Tag;
+const h4a, h4b, h4c: Tag;
 
-    claim(UWS, Alive);
-    claim(UWS, Niagree);
-    claim(UWS, Secret, Nu);
+/* ===  HOP 1: UWS <-> SUB  === */
+protocol uwchop1(UWS, SUB)
+{
+    role UWS
+    {
+        fresh Nu: Nonce;
+        var   Ns: Nonce;
+
+        send_1(UWS, SUB, {h1a, UWS, Nu}pk(SUB));
+        recv_2(SUB, UWS, {h1b, Nu, Ns, SUB}pk(UWS));
+        send_3(UWS, SUB, {h1c, Ns}pk(SUB));
+
+        claim(UWS, Alive);
+        claim(UWS, Weakagree);
+        claim(UWS, Niagree);
+        claim(UWS, Secret, Nu);
+    }
+
+    role SUB
+    {
+        var   Nu: Nonce;
+        fresh Ns: Nonce;
+
+        recv_1(UWS, SUB, {h1a, UWS, Nu}pk(SUB));
+        send_2(SUB, UWS, {h1b, Nu, Ns, SUB}pk(UWS));
+        recv_3(UWS, SUB, {h1c, Ns}pk(SUB));
+
+        claim(SUB, Alive);
+        claim(SUB, Weakagree);
+        claim(SUB, Niagree);
+        claim(SUB, Secret, Ns);
+    }
 }
 
-role SUB
+/* ===  HOP 2: SUB <-> BUOY  === */
+protocol uwchop2(SUB, BUOY)
 {
-    var Nu: Nonce;
-    fresh Ns: Nonce;
-    var Nb: Nonce;
+    role SUB
+    {
+        fresh Ns: Nonce;
+        var   Nb: Nonce;
 
-    recv_1(UWS, SUB, {UWS, Nu}k(UWS,SUB));
-    send_2(SUB, UWS, {SUB, UWS, Nu, Ns}k(UWS,SUB));
+        send_1(SUB, BUOY, {h2a, SUB, Ns}pk(BUOY));
+        recv_2(BUOY, SUB, {h2b, Ns, Nb, BUOY}pk(SUB));
+        send_3(SUB, BUOY, {h2c, Nb}pk(BUOY));
 
-    send_3(SUB, BUOY, {SUB, UWS, Nu, Ns}k(SUB,BUOY));
-    recv_4(BUOY, SUB, {BUOY, SUB, UWS, Nu, Ns, Nb}k(SUB,BUOY));
+        claim(SUB, Alive);
+        claim(SUB, Weakagree);
+        claim(SUB, Niagree);
+        claim(SUB, Secret, Ns);
+    }
 
-    claim(SUB, Alive);
-    claim(SUB, Niagree);
-    claim(SUB, Secret, Ns);
+    role BUOY
+    {
+        var   Ns: Nonce;
+        fresh Nb: Nonce;
+
+        recv_1(SUB, BUOY, {h2a, SUB, Ns}pk(BUOY));
+        send_2(BUOY, SUB, {h2b, Ns, Nb, BUOY}pk(SUB));
+        recv_3(SUB, BUOY, {h2c, Nb}pk(BUOY));
+
+        claim(BUOY, Alive);
+        claim(BUOY, Weakagree);
+        claim(BUOY, Niagree);
+        claim(BUOY, Secret, Nb);
+    }
 }
 
-role BUOY
+/* ===  HOP 3: BUOY <-> SAT  === */
+protocol uwchop3(BUOY, SAT)
 {
-    var Nu: Nonce;
-    var Ns: Nonce;
-    fresh Nb: Nonce;
-    var Nsat: Nonce;
+    role BUOY
+    {
+        fresh Nb: Nonce;
+        var   Nsat: Nonce;
 
-    recv_3(SUB, BUOY, {SUB, UWS, Nu, Ns}k(SUB,BUOY));
-    send_4(BUOY, SUB, {BUOY, SUB, UWS, Nu, Ns, Nb}k(SUB,BUOY));
+        send_1(BUOY, SAT, {h3a, BUOY, Nb}pk(SAT));
+        recv_2(SAT, BUOY, {h3b, Nb, Nsat, SAT}pk(BUOY));
+        send_3(BUOY, SAT, {h3c, Nsat}pk(SAT));
 
-    send_5(BUOY, SAT, {BUOY, SUB, UWS, Nu, Ns, Nb}k(BUOY,SAT));
-    recv_6(SAT, BUOY, {SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat}k(BUOY,SAT));
+        claim(BUOY, Alive);
+        claim(BUOY, Weakagree);
+        claim(BUOY, Niagree);
+        claim(BUOY, Secret, Nb);
+    }
 
-    claim(BUOY, Alive);
-    claim(BUOY, Niagree);
-    claim(BUOY, Secret, Nb);
+    role SAT
+    {
+        var   Nb: Nonce;
+        fresh Nsat: Nonce;
+
+        recv_1(BUOY, SAT, {h3a, BUOY, Nb}pk(SAT));
+        send_2(SAT, BUOY, {h3b, Nb, Nsat, SAT}pk(BUOY));
+        recv_3(BUOY, SAT, {h3c, Nsat}pk(SAT));
+
+        claim(SAT, Alive);
+        claim(SAT, Weakagree);
+        claim(SAT, Niagree);
+        claim(SAT, Secret, Nsat);
+    }
 }
 
-role SAT
+/* ===  HOP 4: SAT <-> BS  === */
+protocol uwchop4(SAT, BS)
 {
-    var Nu: Nonce;
-    var Ns: Nonce;
-    var Nb: Nonce;
-    fresh Nsat: Nonce;
-    var Nbs: Nonce;
+    role SAT
+    {
+        fresh Nsat: Nonce;
+        var   Nbs: Nonce;
 
-    recv_5(BUOY, SAT, {BUOY, SUB, UWS, Nu, Ns, Nb}k(BUOY,SAT));
-    send_6(SAT, BUOY, {SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat}k(BUOY,SAT));
+        send_1(SAT, BS, {h4a, SAT, Nsat}pk(BS));
+        recv_2(BS, SAT, {h4b, Nsat, Nbs, BS}pk(SAT));
+        send_3(SAT, BS, {h4c, Nbs}pk(BS));
 
-    send_7(SAT, BS, {SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat}k(SAT,BS));
-    recv_8(BS, SAT, {BS, SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat, Nbs}k(SAT,BS));
+        claim(SAT, Alive);
+        claim(SAT, Weakagree);
+        claim(SAT, Niagree);
+        claim(SAT, Secret, Nsat);
+    }
 
-    claim(SAT, Alive);
-    claim(SAT, Niagree);
-    claim(SAT, Secret, Nsat);
-}
+    role BS
+    {
+        var   Nsat: Nonce;
+        fresh Nbs: Nonce;
 
-role BS
-{
-    var Nu: Nonce;
-    var Ns: Nonce;
-    var Nb: Nonce;
-    var Nsat: Nonce;
-    fresh Nbs: Nonce;
+        recv_1(SAT, BS, {h4a, SAT, Nsat}pk(BS));
+        send_2(BS, SAT, {h4b, Nsat, Nbs, BS}pk(SAT));
+        recv_3(SAT, BS, {h4c, Nbs}pk(BS));
 
-    recv_7(SAT, BS, {SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat}k(SAT,BS));
-    send_8(BS, SAT, {BS, SAT, BUOY, SUB, UWS, Nu, Ns, Nb, Nsat, Nbs}k(SAT,BS));
-
-    claim(BS, Alive);
-    claim(BS, Niagree);
-    claim(BS, Secret, Nbs);
-}
+        claim(BS, Alive);
+        claim(BS, Weakagree);
+        claim(BS, Niagree);
+        claim(BS, Secret, Nbs);
+    }
 }
