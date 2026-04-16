@@ -375,13 +375,13 @@ Comm Cost: 296 bits | Energy: 48.8 uJ
 
 ### Graph 1: Network Topology (`output_topology.png`)
 
-![Network Topology](output_topology.png)
+![Network Topology](outputs/output_topology.png)
 
 Shows the 8-node hierarchical network in a layered layout with color-coded node states. B1 is marked as failed (red); B2 is the active fallback (green). The thick green edges highlight the active authentication route: **U1 -> S1 -> B2 -> SAT2 -> BS**. B1's dead path (S1 -> B1 -> SAT1) is shown in grey. BS (orange) is at the bottom right as the data collection endpoint.
 
 ### Graph 2: Authentication Delay vs Number of Nodes (`output_delay.png`)
 
-![Delay vs Nodes](output_delay.png)
+![Delay vs Nodes](outputs/output_delay.png)
 
 Delay is computed using Thorp's acoustic absorption model averaged over multiple simulated authentication paths. The non-monotonic (spiky) behavior is expected and realistic because:
 - Random-waypoint mobility offsets (+/-50 m) change inter-node distances each round
@@ -391,31 +391,31 @@ Delay is computed using Thorp's acoustic absorption model averaged over multiple
 
 ### Graph 3: Energy Consumption vs Number of Nodes (`output_energy.png`)
 
-![Energy vs Nodes](output_energy.png)
+![Energy vs Nodes](outputs/output_energy.png)
 
 Energy per authentication cycle follows `E = 48.8 + 0.1 * N` uJ, where 48.8 uJ is the fixed cryptographic cost (ECC + SHA-256 + AES-GCM) and 0.1*N accounts for routing table maintenance overhead. The linear relationship is deterministic. Reference lines show baseline schemes labeled Ref [22] (2300 uJ) and Ref [24] (280 uJ) from the base paper's comparison table, demonstrating the protocol's energy advantage.
 
 ### Graph 4: Communication Cost vs Number of Nodes (`output_comm_cost.png`)
 
-![Communication Cost vs Nodes](output_comm_cost.png)
+![Communication Cost vs Nodes](outputs/output_comm_cost.png)
 
 Total message size per authentication: ID (64 bits) + Nonce (64 bits) + Timestamp (8 bits) + Hash (160 bits) = 296 bits per message, with N*10 bits overhead for routing headers. Compared against all 5 prior schemes from the paper, the proposed protocol achieves the lowest communication overhead (2112 bits total vs 3008-3216 bits for prior work).
 
 ### Graph 5: Comparison Bar Chart (`output_comparison.png`)
 
-![Comparison with Prior Schemes](output_comparison.png)
+![Comparison with Prior Schemes](outputs/output_comparison.png)
 
 Side-by-side comparison of 6 schemes from the paper. Left panel: computational cost on a log scale (baseline scheme Ref [23] at 75 ms vs proposed at 0.4 ms, a 189x improvement). Right panel: communication overhead in bits. The proposed protocol (green bars) achieves the lowest values in both metrics.
 
 ### Graph 6: Throughput vs Number of Nodes (`output_throughput.png`)
 
-![Throughput vs Nodes](output_throughput.png)
+![Throughput vs Nodes](outputs/output_throughput.png)
 
 Authentication throughput measured as authentications per second = 1 / mean_delay. This metric is not present in the original paper and represents a new contribution showing the operational feasibility of the protocol at scale. Higher throughput indicates better practical deployment capacity.
 
 ### Graph 7: Battery Level After Simulation (`output_battery.png`)
 
-![Battery Level per Node](output_battery.png)
+![Battery Level per Node](outputs/output_battery.png)
 
 Percentage battery remaining after all simulation rounds. Active nodes (U1, S1, B2, SAT1, BS) show slight depletion proportional to their participation; inactive/failed nodes (U2, B1, SAT2) remain at 100%. This visualization helps assess long-term deployment viability.
 
@@ -558,7 +558,7 @@ Scyther is used to formally verify that the authentication protocol is secure ag
 
 ### GUI Verification Output (All Claims OK)
 
-![Scyther GUI Method: All Claims OK](main-output.png)
+![Scyther GUI Method: All Claims OK](outputs/main-output.png)
 
 ### Step 3: Verify via Command Line
 
