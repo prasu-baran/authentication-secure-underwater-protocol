@@ -331,7 +331,7 @@ ax.legend(handles=[
     mpatches.Patch(color="#f39c12", label="Base Station (BS)"),
     mpatches.Patch(color="#27ae60", label="Active Auth Path"),
 ], loc="upper left", fontsize=8)
-sv("output_topology.png")
+sv("outputs/output_topology.png")
 
 # Graph 2: Delay with Thorp model
 fig, ax = plt.subplots(figsize=(8,5))
@@ -339,7 +339,7 @@ ax.plot(ns, dsc, marker="o", lw=2, color="#2980b9", label="Proposed (Thorp model
 ax.plot(ns, [0.211]*len(ns), "--", color="#e74c3c", lw=1.5, label="Paper ref (211 ms)")
 ax.set_title("Auth Delay vs Number of Nodes\n(Thorp acoustic model, 25 kHz, realistic distances)", fontsize=11)
 ax.set_xlabel("Number of Nodes"); ax.set_ylabel("Mean Delay (s)")
-ax.legend(); ax.grid(alpha=0.4); sv("output_delay.png")
+ax.legend(); ax.grid(alpha=0.4); sv("outputs/output_delay.png")
 
 # Graph 3: Energy with reference lines
 fig, ax = plt.subplots(figsize=(8,5))
@@ -349,7 +349,7 @@ ax.axhline(280,  color="#e74c3c", linestyle="--", lw=1.5, label="Ref [24] (280 u
 ax.axhline(2300, color="#e67e22", linestyle=":",  lw=1.5, label="Ref [22] (2300 uJ)")
 ax.set_title("Energy Consumption vs Number of Nodes", fontsize=11)
 ax.set_xlabel("Number of Nodes"); ax.set_ylabel("Energy per Auth Cycle (uJ)")
-ax.legend(loc="upper left", fontsize=8); ax.grid(alpha=0.4); sv("output_energy.png")
+ax.legend(loc="upper left", fontsize=8); ax.grid(alpha=0.4); sv("outputs/output_energy.png")
 
 # Graph 4: Comm cost with comparison lines
 fig, ax = plt.subplots(figsize=(8,5))
@@ -358,7 +358,7 @@ for ref,val,col in [("Ref [21]",3008,"#e74c3c"),("Ref [22]",3200,"#e67e22"),("Re
     ax.plot(ns, [val+n*10 for n in ns], "--", color=col, lw=1.2, label=f"{ref} ({val} bits)")
 ax.set_title("Communication Cost vs Number of Nodes", fontsize=11)
 ax.set_xlabel("Number of Nodes"); ax.set_ylabel("Total Bits")
-ax.legend(fontsize=8); ax.grid(alpha=0.4); sv("output_comm_cost.png")
+ax.legend(fontsize=8); ax.grid(alpha=0.4); sv("outputs/output_comm_cost.png")
 
 # Graph 5: Comparison bar charts
 fig, axes = plt.subplots(1, 2, figsize=(12,5))
@@ -377,14 +377,14 @@ for bar, val in zip(bars, cv):
 axes[1].set_title("Communication Overhead (bits)", fontsize=10)
 axes[1].set_ylabel("Total Bits"); axes[1].grid(axis="y", alpha=0.4)
 plt.suptitle("Proposed Protocol vs Prior Schemes (Paper Tables IV & V)", fontsize=11, fontweight="bold")
-sv("output_comparison.png")
+sv("outputs/output_comparison.png")
 
 # Graph 6: Throughput
 fig, ax = plt.subplots(figsize=(8,5))
 ax.plot(ns, tsc, marker="s", lw=2, color="#c0392b", label="Auth throughput")
 ax.set_title("Authentication Throughput vs Network Scale", fontsize=11)
 ax.set_xlabel("Number of Nodes"); ax.set_ylabel("Authentications per Second")
-ax.legend(); ax.grid(alpha=0.4); sv("output_throughput.png")
+ax.legend(); ax.grid(alpha=0.4); sv("outputs/output_throughput.png")
 
 # Graph 7: Battery per node
 nms  = list(node_data.keys())
@@ -400,7 +400,7 @@ ax.set_ylim(0, 105)
 ax.set_title("Battery Level per Node After Simulation", fontsize=11)
 ax.set_ylabel("Battery Remaining (%)")
 ax.axhline(90, color="#e74c3c", linestyle="--", lw=1, label="90% threshold")
-ax.legend(); ax.grid(axis="y", alpha=0.4); sv("output_battery.png")
+ax.legend(); ax.grid(axis="y", alpha=0.4); sv("outputs/output_battery.png")
 
 print("\n=== Simulation Complete ===")
 print(f"  Graphs: 7  |  Anomalies: {len(anoms)}  |  Lost: {ls['lost']}  |  Failures: {ls['failed']}")
